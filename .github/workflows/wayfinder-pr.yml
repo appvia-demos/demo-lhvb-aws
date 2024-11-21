@@ -1,0 +1,153 @@
+name: Wayfinder validate manifests for deployment
+
+on:
+  pull_request:
+    branches:
+    - main
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  yaml-lint:
+    name: "YAML Lint"
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.lint.outcome }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Install yamllint
+        run: sudo apt-get install yamllint
+      - name: Run yamllint
+        id: lint
+        run: yamllint ./wayfinder
+  wf-dry-run-client:
+    name: "Wayfinder Dry Run (Client)"
+    runs-on: ubuntu-latest
+    container: quay.io/${{ vars.WAYFINDER_QUAY_ORG }}/wftoolbox:${{ vars.WAYFINDER_VERSION }}
+    outputs:
+      result: ${{ steps.client.outcome }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Wayfinder dry-run (client)
+        id: client
+        env:
+          WAYFINDER_WORKSPACE: ${{ vars.WAYFINDER_WORKSPACE }}
+        run: wf apply -f ./wayfinder --owner ${{ vars.WAYFINDER_RESOURCE_OWNER }} --dry-run client
+  wf-dry-run-server:
+    name: "Wayfinder Dry Run (Server)"
+    runs-on: ubuntu-latest
+    container: quay.io/${{ vars.WAYFINDER_QUAY_ORG }}/wftoolbox:${{ vars.WAYFINDER_VERSION }}
+    outputs:
+      result: ${{ steps.server.outcome }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Wayfinder dry-run (server)
+        id: server
+        env:
+          WAYFINDER_SERVER: ${{ vars.WAYFINDER_SERVER }}
+          WAYFINDER_TOKEN: ${{ secrets.WAYFINDER_TOKEN }}
+          WAYFINDER_WORKSPACE: ${{ vars.WAYFINDER_WORKSPACE }}
+        run: wf apply -f ./wayfinder --owner ${{ vars.WAYFINDER_RESOURCE_OWNER }} --dry-run server
+  wf-diff:
+    name: "Wayfinder Diff"
+    runs-on: ubuntu-latest
+    container: quay.io/${{ vars.WAYFINDER_QUAY_ORG }}/wftoolbox:${{ vars.WAYFINDER_VERSION }}
+    outputs:
+      result: ${{ steps.diff.outcome }}
+      stdout: ${{ steps.diff.outputs.stdout }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Wayfinder diff
+        id: diff
+        shell: bash
+        env:
+          WAYFINDER_SERVER: ${{ vars.WAYFINDER_SERVER }}
+          WAYFINDER_TOKEN: ${{ secrets.WAYFINDER_TOKEN }}
+          WAYFINDER_WORKSPACE: ${{ vars.WAYFINDER_WORKSPACE }}
+        run: |
+          set +e
+          wf diff -f ./wayfinder --owner ${{ vars.WAYFINDER_RESOURCE_OWNER }} 2>&1 | tee stdout.txt
+          diffExitCode=$?
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "stdout<<$EOF" >> "$GITHUB_OUTPUT"
+          cat stdout.txt >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> "$GITHUB_OUTPUT"
+          exit $diffExitCode
+  update-pr:
+    name: "Update PR"
+    if: success() || failure()
+    runs-on: ubuntu-latest
+    needs:
+      - yaml-lint
+      - wf-dry-run-client
+      - wf-dry-run-server
+      - wf-diff
+    steps:
+      - name: Add PR Comment
+        uses: actions/github-script@v6
+        env:
+          WF_DIFF: "${{ needs.wf-diff.outputs.stdout }}"
+        with:
+          script: |
+            // 1. Retrieve existing bot comments for the PR
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+            const botComment = comments.find(comment => {
+              return comment.user.type === 'Bot' && comment.body.includes('Pull Request Review Status')
+            })
+
+            // 2. Check output length
+            const wfDiff = process.env.WF_DIFF || '';
+            var diff = wfDiff.trim();
+            const excludedStrings = ["Processing file ", "No diffs for "];
+            const filteredLines = diff.split('\n').filter(line =>
+              !excludedStrings.some(excludedStr => line.includes(excludedStr))
+            );
+            var diffOutput = filteredLines.join('\n').trim();
+            if (diffOutput.length < 1 || diffOutput.length > 65000) {
+              diffOutput = "Wayfinder diff output is too large, please view the workflow run logs directly."
+            }
+
+            // 3. Prepare format of the comment
+            const output = `### Pull Request Review Status
+            * 🔍 <b>YAML Lint:</b>                  \`${{ needs.yaml-lint.outputs.result }}\`
+            * 🤖 <b>Wayfinder Dry Run (Client):</b> \`${{ needs.wf-dry-run-client.outputs.result }}\`
+            * 🤖 <b>Wayfinder Dry Run (Server):</b> \`${{ needs.wf-dry-run-server.outputs.result }}\`
+            * 📖 <b>Wayfinder Diff:</b>             \`${{ needs.wf-diff.outputs.result }}\`
+
+            <details><summary><b>Output: 📖 Wayfinder Diff</b></summary>
+
+            \`\`\`
+            ${diffOutput}
+            \`\`\`
+            </details>
+
+            *<b>Pusher:</b> @${{ github.actor }}, <b>Action:</b> \`${{ github.event_name }}\`*
+            *<b>Workflow Run Link:</b> ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}*`;
+
+            // 4. If we have a comment, update it, otherwise create a new one
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: output
+              })
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: output
+              })
+            }
