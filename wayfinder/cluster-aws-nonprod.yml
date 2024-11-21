@@ -1,0 +1,26 @@
+---
+# yamllint disable rule:line-length
+apiVersion: compute.appvia.io/v2beta2
+kind: Cluster
+metadata:
+  name: aws-nonprod
+spec:
+  cloudAccessConfigRef:
+    name: aws-nonprod
+  description: Demo EKS Cluster for non-production workloads
+  nodePools:
+    - autoscaling:
+        enabled: true
+        maxSize: 10
+        minSize: 2
+      diskSize: 30
+      image: AL2_x86_64
+      logicalName: compute
+      machine: t3.large
+      size: 2
+  planRef:
+    name: eks-general-purpose
+    version: 1.30.3
+  provider: EKS
+  region: eu-west-2
+  stage: nonprod
