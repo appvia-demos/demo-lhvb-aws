@@ -53,21 +53,21 @@ jobs:
         run: wf apply -f ./wayfinder --owner ${{ vars.WAYFINDER_RESOURCE_OWNER }} --wait-for-ready 5m --confirm
 
   # # When you're ready to deploy  uncomment below
-  # wf-delpoy:
-  #   name: "Wayfinder Deploy To Nonprod"
-  #   needs:
-  #     - wf-diff
-  #     - wf-apply
-  #   runs-on: ubuntu-latest
-  #   container: quay.io/${{ vars.WAYFINDER_QUAY_ORG }}/wftoolbox:${{ vars.WAYFINDER_VERSION }}
-  #   steps:
-  #     - name: Checkout Repository
-  #       uses: actions/checkout@v4
-  #     - name: Wayfinder 
-  #       env:
-  #         WAYFINDER_SERVER: ${{ vars.WAYFINDER_SERVER }}
-  #         WAYFINDER_TOKEN: ${{ secrets.WAYFINDER_TOKEN }}
-  #         WAYFINDER_APPLICATION_NAME: ${{ vars.WAYFINDER_APPLICATION_NAME }}
-  #         WAYFINDER_WORKSPACE: ${{ vars.WAYFINDER_WORKSPACE }}
-  #       run: wf deploy app ${{ vars.WAYFINDER_APPLICATION_NAME }} nonprod
+  wf-delpoy:
+   name: "Wayfinder Deploy To Nonprod"
+   needs:
+     - wf-diff
+     - wf-apply
+   runs-on: ubuntu-latest
+   container: quay.io/${{ vars.WAYFINDER_QUAY_ORG }}/wftoolbox:${{ vars.WAYFINDER_VERSION }}
+   steps:
+     - name: Checkout Repository
+       uses: actions/checkout@v4
+     - name: Wayfinder 
+       env:
+         WAYFINDER_SERVER: ${{ vars.WAYFINDER_SERVER }}
+         WAYFINDER_TOKEN: ${{ secrets.WAYFINDER_TOKEN }}
+         WAYFINDER_APPLICATION_NAME: ${{ vars.WAYFINDER_APPLICATION_NAME }}
+         WAYFINDER_WORKSPACE: ${{ vars.WAYFINDER_WORKSPACE }}
+       run: wf deploy app ${{ vars.WAYFINDER_APPLICATION_NAME }} nonprod
   

@@ -1,0 +1,16 @@
+---
+apiVersion: app.appvia.io/v2beta1
+kind: AppEnv
+metadata:
+  name: lhvb-nonprod
+spec:
+  name: nonprod
+  stage: nonprod
+  application: lhvb
+  cloud: aws
+  clusterRef:
+    group: compute.appvia.io
+    kind: Cluster
+    name: aws-nonprod
+    namespace: ws-demo
+    version: v2beta1

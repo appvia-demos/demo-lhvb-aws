@@ -1,0 +1,43 @@
+---
+apiVersion: app.appvia.io/v2beta1
+kind: AppComponent
+metadata:
+  name: lhvb-s3-app
+spec:
+  application: lhvb
+  name: lhvb-s3-app
+  type: Container
+  dependsOn:
+    - lhvb-s3
+  container:
+    containers:
+      - name: ui
+        env:
+          - fromCloudResourceOutput:
+              componentName: lhvb-s3
+              output: ACCESS_KEY_ID
+            name: AWS_ACCESS_KEY_ID
+          - fromCloudResourceOutput:
+              componentName: lhvb-s3
+              output: SECRET_ACCESS_KEY
+            name: AWS_SECRET_ACCESS_KEY
+          - fromCloudResourceOutput:
+              componentName: lhvb-s3
+              output: BUCKET_REGION
+            name: S3_REGION
+          - fromCloudResourceOutput:
+              componentName: lhvb-s3
+              output: BUCKET_ID
+            name: BUCKET_NAME
+        image: 'ghcr.io/appvia-demos/aws-app:latest'
+        ports:
+          - containerPort: 3001
+            name: ui
+            protocol: TCP
+        securityContext:
+          runAsGroup: 1002
+          runAsUser: 1002
+    expose:
+      container: ui
+      port: 3001
+    tls: true
