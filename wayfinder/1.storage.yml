@@ -1,0 +1,16 @@
+---
+apiVersion: app.appvia.io/v2beta1
+kind: AppComponent
+metadata:
+  name: lhvb-s3
+spec:
+  application: lhvb
+  cloudResource:
+    plan: aws-s3-bucket
+    planVersion: 4.7.1-1
+    variables:
+      name: lhvb6s3ujtjk91
+      bucket_name: lhvb6s3ujtjk91
+  key: storage
+  name: lhvb-s3
+  type: CloudResource
